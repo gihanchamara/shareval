@@ -1,0 +1,205 @@
+{
+  "version": "1.0.0",
+  "project": "ShareVal - Stock & Option Fair Valuation Service",
+  "description": "Spec-driven knowledge base indexing valuation models, market data interfaces, mathematical specifications, and parameter contracts.",
+  "categories": [
+    {
+      "id": "stock-models",
+      "name": "Stock Valuation Models",
+      "description": "Fundamental and intrinsic valuation algorithms for equities.",
+      "items": ["stock-dcf", "stock-graham", "stock-ddm", "stock-multiples"]
+    },
+    {
+      "id": "option-models",
+      "name": "Option Valuation Models",
+      "description": "Derivatives pricing algorithms for European and American options.",
+      "items": ["option-black-scholes", "option-binomial-tree", "option-greeks"]
+    },
+    {
+      "id": "architecture-interfaces",
+      "name": "Architecture & Contracts",
+      "description": "Pluggable provider interfaces and API contracts.",
+      "items": ["interface-datasource", "api-spec"]
+    }
+  ],
+  "specs": {
+    "stock-dcf": {
+      "id": "stock-dcf",
+      "category": "stock-models",
+      "title": "Discounted Cash Flow (DCF) Model",
+      "filePath": "models/stock_dcf.md",
+      "formula": "PV(FCF) = \\sum_{t=1}^n \\frac{FCF_t}{(1 + WACC)^t} + \\frac{TV}{(1 + WACC)^n}",
+      "keyParameters": [
+        {"name": "free_cash_flow", "type": "float", "unit": "USD", "description": "Baseline free cash flow (FCFE/FCFF)"},
+        {"name": "growth_rate_stage1", "type": "float", "unit": "percentage", "description": "Annual growth rate for high growth period (years 1-5)"},
+        {"name": "growth_rate_stage2", "type": "float", "unit": "percentage", "description": "Transition growth rate (years 6-10)"},
+        {"name": "terminal_growth_rate", "type": "float", "unit": "percentage", "description": "Long-term perpetual growth rate (typically 2-3%)"},
+        {"name": "discount_rate", "type": "float", "unit": "percentage", "description": "WACC or required hurdle rate of return"},
+        {"name": "net_debt", "type": "float", "unit": "USD", "description": "Total Debt minus Cash & Equivalents"},
+        {"name": "shares_outstanding", "type": "float", "unit": "count", "description": "Diluted common shares outstanding"}
+      ],
+      "outputs": [
+        "enterprise_value",
+        "equity_value",
+        "fair_value_per_share",
+        "projected_cash_flows",
+        "terminal_value",
+        "margin_of_safety_pct"
+      ]
+    },
+    "stock-graham": {
+      "id": "stock-graham",
+      "category": "stock-models",
+      "title": "Benjamin Graham Intrinsic Value Model",
+      "filePath": "models/stock_graham.md",
+      "formula": "V = \\frac{EPS \\times (8.5 + 2g) \\times 4.4}{Y}",
+      "keyParameters": [
+        {"name": "eps", "type": "float", "unit": "USD", "description": "Trailing 12-month diluted earnings per share"},
+        {"name": "growth_rate", "type": "float", "unit": "percentage", "description": "Expected annual earnings growth rate for next 7-10 years"},
+        {"name": "current_yield", "type": "float", "unit": "percentage", "description": "Current AAA corporate bond yield (default ~4.4%)"},
+        {"name": "book_value_per_share", "type": "float", "unit": "USD", "description": "Book value per share for Graham Number calculation"}
+      ],
+      "outputs": [
+        "graham_fair_value",
+        "graham_number",
+        "margin_of_safety_pct"
+      ]
+    },
+    "stock-ddm": {
+      "id": "stock-ddm",
+      "category": "stock-models",
+      "title": "Dividend Discount Model (Gordon Growth)",
+      "filePath": "models/stock_ddm.md",
+      "formula": "P_0 = \\frac{D_0 \\times (1 + g)}{r - g}",
+      "keyParameters": [
+        {"name": "annual_dividend", "type": "float", "unit": "USD", "description": "Current annual dividend per share (D0)"},
+        {"name": "dividend_growth_rate", "type": "float", "unit": "percentage", "description": "Expected perpetual dividend growth rate (g)"},
+        {"name": "required_rate_of_return", "type": "float", "unit": "percentage", "description": "Investor required rate of return (r > g)"}
+      ],
+      "outputs": [
+        "ddm_fair_value",
+        "expected_dividend_d1",
+        "dividend_yield_pct",
+        "margin_of_safety_pct"
+      ]
+    },
+    "stock-multiples": {
+      "id": "stock-multiples",
+      "category": "stock-models",
+      "title": "Relative Valuation (Comparable Multiples)",
+      "filePath": "models/stock_multiples.md",
+      "formula": "Fair Value = Metric \\times Benchmark Multiple",
+      "keyParameters": [
+        {"name": "eps", "type": "float", "unit": "USD", "description": "Earnings per share for P/E valuation"},
+        {"name": "book_value_per_share", "type": "float", "unit": "USD", "description": "Book value per share for P/B valuation"},
+        {"name": "benchmark_pe", "type": "float", "unit": "multiple", "description": "Industry or peer group P/E ratio"},
+        {"name": "benchmark_pb", "type": "float", "unit": "multiple", "description": "Industry or peer group P/B ratio"}
+      ],
+      "outputs": [
+        "pe_implied_price",
+        "pb_implied_price",
+        "blended_multiple_price"
+      ]
+    },
+    "option-black-scholes": {
+      "id": "option-black-scholes",
+      "category": "option-models",
+      "title": "Black-Scholes-Merton Pricing Model",
+      "filePath": "models/option_black_scholes.md",
+      "formula": "C = S_0 e^{-qT} N(d_1) - K e^{-rT} N(d_2), \\; P = K e^{-rT} N(-d_2) - S_0 e^{-qT} N(-d_1)",
+      "keyParameters": [
+        {"name": "underlying_price", "type": "float", "unit": "USD", "description": "Current spot price of underlying asset (S)"},
+        {"name": "strike_price", "type": "float", "unit": "USD", "description": "Option strike price (K)"},
+        {"name": "time_to_expiration", "type": "float", "unit": "years", "description": "Time until expiration in years (T = DTE / 365)"},
+        {"name": "volatility", "type": "float", "unit": "percentage", "description": "Annualized volatility of underlying returns (sigma)"},
+        {"name": "risk_free_rate", "type": "float", "unit": "percentage", "description": "Annualized risk-free interest rate (r)"},
+        {"name": "dividend_yield", "type": "float", "unit": "percentage", "description": "Continuous annual dividend yield (q)"}
+      ],
+      "outputs": [
+        "call_price",
+        "put_price",
+        "d1",
+        "d2",
+        "call_intrinsic_value",
+        "call_time_value",
+        "put_intrinsic_value",
+        "put_time_value"
+      ]
+    },
+    "option-binomial-tree": {
+      "id": "option-binomial-tree",
+      "category": "option-models",
+      "title": "Cox-Ross-Rubinstein (CRR) Binomial Tree Model",
+      "filePath": "models/option_binomial.md",
+      "formula": "V_{i,j} = \\max( \\text{Payoff}_{i,j}, e^{-r \\Delta t} [p V_{i+1,j+1} + (1-p) V_{i+1,j}] )",
+      "keyParameters": [
+        {"name": "underlying_price", "type": "float", "unit": "USD", "description": "Current spot price (S)"},
+        {"name": "strike_price", "type": "float", "unit": "USD", "description": "Option strike price (K)"},
+        {"name": "time_to_expiration", "type": "float", "unit": "years", "description": "Time to expiration (T)"},
+        {"name": "volatility", "type": "float", "unit": "percentage", "description": "Annualized volatility (sigma)"},
+        {"name": "risk_free_rate", "type": "float", "unit": "percentage", "description": "Risk-free rate (r)"},
+        {"name": "steps", "type": "integer", "unit": "count", "description": "Number of binomial lattice steps (e.g. 50-200)"},
+        {"name": "style", "type": "string", "unit": "enum", "description": "Exercise style: 'american' or 'european'"}
+      ],
+      "outputs": [
+        "option_price",
+        "early_exercise_premium",
+        "tree_depth",
+        "convergence_delta"
+      ]
+    },
+    "option-greeks": {
+      "id": "option-greeks",
+      "category": "option-models",
+      "title": "Option Greeks & Sensitivity Analysis",
+      "filePath": "models/option_greeks.md",
+      "formula": "\\Delta = \\frac{\\partial V}{\\partial S}, \\; \\Gamma = \\frac{\\partial^2 V}{\\partial S^2}, \\; \\Theta = -\\frac{\\partial V}{\\partial T}, \\; \\mathcal{V} = \\frac{\\partial V}{\\partial \\sigma}, \\; \\rho = \\frac{\\partial V}{\\partial r}",
+      "keyParameters": [
+        {"name": "underlying_price", "type": "float", "unit": "USD", "description": "Spot price (S)"},
+        {"name": "strike_price", "type": "float", "unit": "USD", "description": "Strike price (K)"},
+        {"name": "time_to_expiration", "type": "float", "unit": "years", "description": "Time to expiry (T)"},
+        {"name": "volatility", "type": "float", "unit": "percentage", "description": "Volatility (sigma)"},
+        {"name": "risk_free_rate", "type": "float", "unit": "percentage", "description": "Risk free rate (r)"}
+      ],
+      "outputs": [
+        "delta",
+        "gamma",
+        "theta_per_day",
+        "vega_per_pct",
+        "rho_per_pct",
+        "implied_volatility"
+      ]
+    },
+    "interface-datasource": {
+      "id": "interface-datasource",
+      "category": "architecture-interfaces",
+      "title": "Market Data Provider Interface Contract",
+      "filePath": "interfaces/data_source.md",
+      "formula": "class DataSourceProvider(ABC)",
+      "keyParameters": [
+        {"name": "symbol", "type": "string", "unit": "ticker", "description": "Equity/option ticker symbol"}
+      ],
+      "outputs": [
+        "StockQuote",
+        "CompanyFinancials",
+        "OptionChainSummary",
+        "RiskFreeRate"
+      ]
+    },
+    "api-spec": {
+      "id": "api-spec",
+      "category": "architecture-interfaces",
+      "title": "REST API OpenAPI Specification",
+      "filePath": "api/openapi_spec.md",
+      "formula": "REST / OpenAPI 3.1",
+      "keyParameters": [],
+      "outputs": [
+        "/api/v1/stocks/evaluate",
+        "/api/v1/options/evaluate",
+        "/api/v1/market/lookup",
+        "/api/v1/knowledge/index",
+        "/api/v1/knowledge/spec/{id}"
+      ]
+    }
+  }
+}

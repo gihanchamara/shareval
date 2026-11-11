@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ShareVal - Stock & Option Fair Valuation Service</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              900: '#14532d',
+            },
+            slate: {
+              850: '#151e2e',
+              900: '#0f172a',
+              950: '#070b14',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel for inline JSX compilation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-emerald-500 selection:text-slate-950">
+  <div id="root"></div>
+
+  <!-- React Application Logic -->
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    const API_BASE = "/api/v1";
+
+    function App() {
+      const [activeTab, setActiveTab] = useState("stocks"); // "stocks" | "options" | "knowledge"
+      const [dataSource, setDataSource] = useState("mock");
+      const [availableSources, setAvailableSources] = useState(["mock", "yahoo"]);
+      const [statusMsg, setStatusMsg] = useState("");
+
+      useEffect(() => {
+        // Fetch available data sources
+        fetch(`${API_BASE}/market/sources`)
+          .then(r => r.json())
+          .then(data => {
+            if (data.available_sources) setAvailableSources(data.available_sources);
+          })
+          .catch(() => {});
+      }, []);
+
+      return (
+        <div class="min-h-screen flex flex-col">
+          {/* Top Navbar */}
+          <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+              <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                  <span class="text-slate-950 font-extrabold text-xl font-mono">SV</span>
+                </div>
+                <div>
+                  <div class="flex items-center space-x-2">
+                    <h1 class="text-lg font-bold tracking-tight text-white">ShareVal</h1>
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-mono">v1.0</span>
+                  </div>
+                  <p class="text-xs text-slate-400">Fair Valuation Service • Stock & Options</p>
+                </div>
+              </div>
+
+              {/* Navigation Tabs */}
+              <nav class="flex items-center space-x-1 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
+                <button
+                  onClick={() => setActiveTab("stocks")}
+                  class={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === "stocks"
+                      ? "bg-emerald-500 text-slate-950 shadow-md font-semibold"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  }`}
+                >
+                  📈 Equities
+                </button>
+                <button
+                  onClick={() => setActiveTab("options")}
+                  class={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === "options"
+                      ? "bg-emerald-500 text-slate-950 shadow-md font-semibold"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  }`}
+                >
+                  ⚡ Derivatives & Greeks
+                </button>
+                <button
+                  onClick={() => setActiveTab("knowledge")}
+                  class={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    activeTab === "knowledge"
+                      ? "bg-emerald-500 text-slate-950 shadow-md font-semibold"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  }`}
+                >
+                  📚 Spec Knowledge Base
+                </button>
+              </nav>
+
+              {/* Data Source Switcher & API Docs */}
+              <div class="flex items-center space-x-3">
+                <div class="flex items-center space-x-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 text-xs">
+                  <span class="text-slate-400">Data Source:</span>
+                  <select
+                    value={dataSource}
+                    onChange={(e) => setDataSource(e.target.value)}
+                    class="bg-transparent text-emerald-400 font-mono font-medium focus:outline-none cursor-pointer"
+                  >
+                    {availableSources.map(s => (
+                      <option key={s} value={s} class="bg-slate-900 text-white">
+                        {s.toUpperCase()} {s === "mock" ? "(Offline/Fast)" : "(Live)"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <a
+                  href="/docs"
+                  target="_blank"
+                  rel="noreferrer"
+                  class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center space-x-1"
+                >
+                  <span>API Docs</span>
+                  <span>↗</span>
+                </a>
+              </div>
+            </div>
+          </header>
+
+          {/* Main Body */}
+          <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            {activeTab === "stocks" && <StockValuationView dataSource={dataSource} />}
+            {activeTab === "options" && <OptionValuationView dataSource={dataSource} />}
+            {activeTab === "knowledge" && <KnowledgeBaseView />}
+          </main>
+
+          {/* Footer */}
+          <footer class="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500 bg-slate-950">
+            ShareVal Spec-Driven Valuation Engine • FastAPI &amp; Pure Python Analytics • Pluggable Financial Interfaces
+          </footer>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 1. STOCK VALUATION VIEW
+    // ==========================================
+    function StockValuationView({ dataSource }) {
+      const [ticker, setTicker] = useState("AAPL");
+      const [loadingFetch, setLoadingFetch] = useState(false);
+      const [calculating, setCalculating] = useState(false);
+      const [error, setError] = useState(null);
+
+      // Model inputs
+      const [companyName, setCompanyName] = useState("Apple Inc.");
+      const [currentPrice, setCurrentPrice] = useState(225.50);
+      const [fcf, setFcf] = useState(108800000000);
+      const [growth1, setGrowth1] = useState(10.0); // %
+      const [growth2, setGrowth2] = useState(5.0); // %
+      const [terminalGrowth, setTerminalGrowth] = useState(2.5); // %
+      const [discountRate, setDiscountRate] = useState(9.0); // %
+      const [netDebt, setNetDebt] = useState(40000000000);
+      const [shares, setShares] = useState(15300000000);
+      const [eps, setEps] = useState(6.75);
+      const [grahamGrowth, setGrahamGrowth] = useState(8.0);
+      const [bondYield, setBondYield] = useState(4.5);
+      const [bvps, setBvps] = useState(4.95);
+      const [annualDiv, setAnnualDiv] = useState(1.00);
+      const [divGrowth, setDivGrowth] = useState(4.0);
+      const [benchmarkPe, setBenchmarkPe] = useState(30.0);
+      const [benchmarkPb, setBenchmarkPb] = useState(35.0);
+
+      // Weights for composite
+      const [wDcf, setWDcf] = useState(0.45);
+      const [wGraham, setWGraham] = useState(0.25);
+      const [wDdm, setWDdm] = useState(0.10);
+      const [wMultiples, setWMultiples] = useState(0.20);
+
+      // Valuation Results
+      const [result, setResult] = useState(null);
+
+      const fetchTickerData = async (symToFetch) => {
+        const sym = (symToFetch || ticker).trim().toUpperCase();
+        if (!sym) return;
+        setLoadingFetch(true);
+        setError(null);
+        try {
+          const [qRes, fRes] = await Promise.all([
+            fetch(`${API_BASE}/market/quote/${sym}?source=${dataSource}`),
+            fetch(`${API_BASE}/market/financials/${sym}?source=${dataSource}`)
+          ]);
+
+          if (!qRes.ok || !fRes.ok) throw new Error("Failed to fetch ticker data");
+
+          const quote = await qRes.json();
+          const fin = await fRes.json();
+
+          setCompanyName(quote.company_name);
+          setCurrentPrice(quote.current_price);
+          setFcf(fin.free_cash_flow);
+          setShares(fin.shares_outstanding);
+          setNetDebt(fin.total_debt - fin.total_cash);
+          setEps(fin.diluted_eps);
+          setBvps(fin.book_value_per_share || 5.0);
+          setAnnualDiv(fin.annual_dividend || 0.0);
+
+          // Trigger valuation with fetched metrics
+          runValuation({
+            symbol: sym,
+            current_price: quote.current_price,
+            free_cash_flow: fin.free_cash_flow,
+            shares_outstanding: fin.shares_outstanding,
+            net_debt: fin.total_debt - fin.total_cash,
+            eps: fin.diluted_eps,
+            book_value_per_share: fin.book_value_per_share || 5.0,
+            annual_dividend: fin.annual_dividend || 0.0
+          });
+        } catch (e) {
+          setError(e.message);
+        } finally {
+          setLoadingFetch(false);
+        }
+      };
+
+      const runValuation = async (overrides = {}) => {
+        setCalculating(true);
+        setError(null);
+        try {
+          const payload = {
+            symbol: overrides.symbol || ticker.toUpperCase(),
+            current_price: overrides.current_price !== undefined ? overrides.current_price : Number(currentPrice),
+            free_cash_flow: overrides.free_cash_flow !== undefined ? overrides.free_cash_flow : Number(fcf),
+            growth_rate_stage1: Number(growth1) / 100.0,
+            growth_rate_stage2: Number(growth2) / 100.0,
+            terminal_growth_rate: Number(terminalGrowth) / 100.0,
+            discount_rate: Number(discountRate) / 100.0,
+            net_debt: overrides.net_debt !== undefined ? overrides.net_debt : Number(netDebt),
+            shares_outstanding: overrides.shares_outstanding !== undefined ? overrides.shares_outstanding : Number(shares),
+            eps: overrides.eps !== undefined ? overrides.eps : Number(eps),
+            expected_growth_graham: Number(grahamGrowth) / 100.0,
+            current_bond_yield: Number(bondYield) / 100.0,
+            book_value_per_share: overrides.book_value_per_share !== undefined ? overrides.book_value_per_share : Number(bvps),
+            annual_dividend: overrides.annual_dividend !== undefined ? overrides.annual_dividend : Number(annualDiv),
+            dividend_growth_rate: Number(divGrowth) / 100.0,
+            benchmark_pe: Number(benchmarkPe),
+            benchmark_pb: Number(benchmarkPb),
+            weight_dcf: Number(wDcf),
+            weight_graham: Number(wGraham),
+            weight_ddm: Number(wDdm),
+            weight_multiples: Number(wMultiples)
+          };
+
+          const res = await fetch(`${API_BASE}/stocks/evaluate/composite`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+
+          if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.detail || "Valuation calculation failed");
+          }
+
+          const data = await res.json();
+          setResult(data);
+        } catch (e) {
+          setError(e.message);
+        } finally {
+          setCalculating(false);
+        }
+      };
+
+      useEffect(() => {
+        fetchTickerData("AAPL");
+      }, []);
+
+      return (
+        <div class="space-y-6">
+          {/* Top Ticker Bar & Presets */}
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+              <div class="relative">
+                <input
+                  type="text"
+                  value={ticker}
+                  onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => e.key === "Enter" && fetchTickerData()}
+                  placeholder="Ticker (e.g. AAPL)"
+                  class="bg-slate-950 border border-slate-700 px-4 py-2 rounded-xl text-white font-mono font-bold uppercase w-36 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <button
+                onClick={() => fetchTickerData()}
+                disabled={loadingFetch}
+                class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold transition disabled:opacity-50 text-sm flex items-center space-x-1"
+              >
+                {loadingFetch ? "Fetching..." : "Fetch Financials"}
+              </button>
+
+              {/* Preset Quick Buttons */}
+              <div class="hidden md:flex items-center space-x-1.5 text-xs text-slate-400">
+                <span class="mr-1 text-slate-500">Presets:</span>
+                {["AAPL", "MSFT", "GOOGL", "KO", "TSLA"].map(sym => (
+                  <button
+                    key={sym}
+                    onClick={() => { setTicker(sym); fetchTickerData(sym); }}
+                    class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 hover:text-white font-mono transition"
+                  >
+                    {sym}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div class="flex items-center space-x-6 text-sm">
+              <div>
+                <span class="text-slate-400 block text-xs">Target Asset</span>
+                <span class="font-bold text-white">{companyName}</span>
+              </div>
+              <div>
+                <span class="text-slate-400 block text-xs">Current Market Price</span>
+                <span class="font-mono font-bold text-emerald-400 text-base">${Number(currentPrice).toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div class="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-sm">
+              <strong>Error:</strong> {error}
+            </div>
+          )}
+
+          {/* Main Grid: Parameters Form (Left) & Valuation Results (Right) */}
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* Left Column: Model Parameters Form */}
+            <div class="lg:col-span-7 space-y-6">
+              
+              {/* DCF Parameters */}
+              <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div class="flex items-center space-x-2">
+                    <span class="text-emerald-400 text-lg">📊</span>
+                    <h3 class="font-bold text-white text-base">Discounted Cash Flow (DCF) Parameters</h3>
+                  </div>
+                  <span class="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">10-Year Horizon</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <label class="text-slate-400 block mb-1">Baseline Free Cash Flow ($)</label>
+                    <input
+                      type="number"
+                      value={fcf}
+                      onChange={(e) => setFcf(e.target.value)}
+                      class="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg font-mono text-white focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="text-slate-400 block mb-1">Diluted Shares Outstanding</label>
+                    <input
+                      type="number"
+                      value={shares}
+                      onChange={(e) => setShares(e.target.value)}
+                      class="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg font-mono text-white focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <div class="flex justify-between mb-1">
+                      <label class="text-slate-400">Stage 1 Growth (Years 1-5)</label>
+                      <span class="text-emerald-400 font-mono font-bold">{growth1}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-10"
+                      max="40"
+                      step="0.5"
+                      value={growth1}
+                      onChange={(e) => setGrowth1(e.target.value)}
+                      class="w-full accent-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <div class="flex justify-between mb-1">
+                      <label class="text-slate-400">Stage 2 Growth (Years 6-10)</label>
+                      <span class="text-emerald-400 font-mono font-bold">{growth2}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-5"
+                      max="25"
+                      step="0.5"
+                      value={growth2}
+                      onChange={(e) => setGrowth2(e.target.value)}
+                      class="w-full accent-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <div class="flex justify-between mb-1">
+                      <label class="text-slate-400">Discount Rate (WACC)</label>
+                      <span class="text-emerald-400 font-mono font-bold">{discountRate}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="20"
+                      step="0.25"
+                      value={discountRate}
+                      onChange={(e) => setDiscountRate(e.target.value)}
+                      class="w-full accent-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <div class="flex justify-between mb-1">
+                      <label class="text-slate-400">Perpetual Terminal Growth</label>
+                      <span class="text-emerald-400 font-mono font-bold">{terminalGrowth}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="1.0"
+                      max="4.5"
+                      step="0.1"
+                      value={terminalGrowth}
+                      onChange={(e) => setTerminalGrowth(e.target.value)}
+                      class="w-full accent-emerald-500"
+                    />
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label class="text-slate-400 block mb-1">Net Debt (Total Debt - Cash) ($)</label>
+                    <input
+                      type="number"
+                      value={netDebt}
+                      onChange={(e) => setNetDebt(e.target.value)}
+                      class="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg font-mono text-white focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Graham & DDM & Multiples Parameters */}
+              <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div class="flex items-center space-x-2 border-b border-slate-800 pb-3">
+                  <span class="text-emerald-400 text-lg">⚖️</span>
+                  <h3 class="font-bold text-white text-base">Graham, DDM & Multiples Parameters</h3>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div>
+                    <label class="text-slate-400 block mb-1">Diluted EPS ($)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={eps}
+                      onChange={(e) => setEps(e.target.value)}
+                      class="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg font-mono text-white focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="text-slate-400 block mb-1">Graham Expected Growth (%)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={grahamGrowth}
+                      onChange={(e) => setGrahamGrowth(e.target.value)}
+                      class="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg font-mono text-white focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="text-slate-400 block mb-1">AAA Bond Yield (%)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={bondYield}
+                      onChange={(e) => setBondYield(e.target.value)}
+                      class="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg font-mono text-white focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="text-slate-400 block mb-1">Book Value / Share ($)</label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={bvps}
+                      onChange={(e) => setBvps(e.target.value)}
+                      class="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg font-mono text-white focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="text-slate-400 block mb-1">Annual Dividend ($)</label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={annualDiv}
+                      onChange={(e) => setAnnualDiv(e.target.value)}
+                      class="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg font-mono text-white focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="text-slate-400 block mb-1">Benchmark P/E Ratio</label>
+                    <input
+                      type="number"
+                      step="1"
+                      value={benchmarkPe}
+                      onChange={(e) => setBenchmarkPe(e.target.value)}
+                      class="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg font-mono text-white focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Model Weights Slider for Composite */}
+              <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+                <h3 class="font-bold text-white text-sm">Composite Model Weight Allocation</h3>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <label class="text-slate-400 block mb-1">DCF Weight: {Math.round(wDcf * 100)}%</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={wDcf}
+                      onChange={(e) => setWDcf(Number(e.target.value))}
+                      class="w-full accent-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="text-slate-400 block mb-1">Graham Weight: {Math.round(wGraham * 100)}%</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={wGraham}
+                      onChange={(e) => setWGraham(Number(e.target.value))}
+                      class="w-full accent-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="text-slate-400 block mb-1">DDM Weight: {Math.round(wDdm * 100)}%</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={wDdm}
+                      onChange={(e) => setWDdm(Number(e.target.value))}
+                      class="w-full accent-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="text-slate-400 block mb-1">Multiples: {Math.round(wMultiples * 100)}%</label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={wMultiples}
+                      onChange={(e) => setWMultiples(Number(e.target.value))}
+                      class="w-full accent-emerald-500"
+                    />
+                  </div>
+                </div>
+                <div class="pt-2">
+                  <button
+                    onClick={() => runValuation()}
+                    disabled={calculating}
+                    class="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition text-sm flex items-center justify-center space-x-2"
+                  >
+                    <span>{calculating ? "Calculating..." : "Recalculate Intrinsic Valuation"}</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Right Column: Valuation Results Dashboard */}
+            <div class="lg:col-span-5 space-y-6">
+              
+              {/* Primary Blended Fair Value Card */}
+              {result && (
+                <div class="bg-gradient-to-br from-slate-900 to-slate-850 border border-emerald-500/30 rounded-2xl p-6 relative overflow-hidden shadow-2xl">
+                  <div class="absolute -right-12 -top-12 w-48 h-48 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+                  
+                  <div class="flex items-center justify-between mb-4">
+                    <span class="text-xs uppercase font-mono tracking-wider text-slate-400">Composite Intrinsic Value</span>
+                    <span class={`text-xs px-2.5 py-1 rounded-full font-bold font-mono ${
+                      result.valuation_verdict === "Undervalued"
+                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                        : result.valuation_verdict === "Overvalued"
+                        ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+                        : "bg-amber-500/20 text-amber-400 border border-amber-500/40"
+                    }`}>
+                      {result.valuation_verdict}
+                    </span>
+                  </div>
+
+                  <div class="flex items-baseline space-x-3 mb-2">
+                    <span class="text-4xl font-extrabold text-white font-mono tracking-tight">
+                      ${result.blended_fair_value.toFixed(2)}
+                    </span>
+                    <span class="text-sm text-slate-400 font-mono">
+                      vs ${Number(currentPrice).toFixed(2)} market
+                    </span>
+                  </div>
+
+                  <div class="text-sm font-semibold flex items-center space-x-2">
+                    <span class="text-slate-400">Margin of Safety:</span>
+                    <span class={`font-mono ${
+                      result.overall_margin_of_safety_pct > 0 ? "text-emerald-400" : "text-rose-400"
+                    }`}>
+                      {result.overall_margin_of_safety_pct > 0 ? "+" : ""}
+                      {result.overall_margin_of_safety_pct.toFixed(1)}%
+                    </span>
+                  </div>
+
+                  {/* Individual Model Contribution Cards */}
+                  <div class="mt-6 pt-5 border-t border-slate-800 space-y-2.5">
+                    <span class="text-xs text-slate-400 uppercase font-mono block">Model Fair Value Estimates</span>
+                    
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                      <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80">
+                        <div class="flex justify-between text-slate-400 mb-1">
+                          <span>DCF (10Y)</span>
+                          <span class="font-mono">{Math.round((result.weights_used.DCF || 0) * 100)}%</span>
+                        </div>
+                        <span class="font-mono text-base font-bold text-white">
+                          ${(result.models.DCF || 0).toFixed(2)}
+                        </span>
+                      </div>
+
+                      <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80">
+                        <div class="flex justify-between text-slate-400 mb-1">
+                          <span>Graham Revised</span>
+                          <span class="font-mono">{Math.round((result.weights_used.Graham || 0) * 100)}%</span>
+                        </div>
+                        <span class="font-mono text-base font-bold text-white">
+                          ${(result.models.Graham || 0).toFixed(2)}
+                        </span>
+                      </div>
+
+                      <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80">
+                        <div class="flex justify-between text-slate-400 mb-1">
+                          <span>DDM (Gordon)</span>
+                          <span class="font-mono">{Math.round((result.weights_used.DDM || 0) * 100)}%</span>
+                        </div>
+                        <span class="font-mono text-base font-bold text-white">
+                          {result.models.DDM ? `$${result.models.DDM.toFixed(2)}` : "N/A"}
+                        </span>
+                      </div>
+
+                      <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80">
+                        <div class="flex justify-between text-slate-400 mb-1">
+                          <span>Multiples (P/E)</span>
+                          <span class="font-mono">{Math.round((result.weights_used.Multiples || 0) * 100)}%</span>
+                        </div>
+                        <span class="font-mono text-base font-bold text-white">
+                          ${(result.models.Multiples || 0).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* DCF Cash Flow Trajectory Table */}
+              {result && result.dcf_details && (
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+                  <div class="flex justify-between items-center">
+                    <h4 class="text-sm font-bold text-white">10-Year DCF Cash Flow Projections</h4>
+                    <span class="text-xs text-slate-500 font-mono">Disc. at {discountRate}%</span>
+                  </div>
+                  
+                  <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs font-mono">
+                      <thead>
+                        <tr class="text-slate-400 border-b border-slate-800">
+                          <th class="py-1.5">Yr</th>
+                          <th class="py-1.5">Proj. FCF</th>
+                          <th class="py-1.5">Disc. Factor</th>
+                          <th class="py-1.5 text-right">PV ($)</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-850">
+                        {result.dcf_details.projections.map((p) => (
+                          <tr key={p.year} class="hover:bg-slate-800/30">
+                            <td class="py-1.5 text-slate-400">Y{p.year}</td>
+                            <td class="py-1.5 text-white">${(p.projected_fcf / 1e9).toFixed(2)}B</td>
+                            <td class="py-1.5 text-slate-400">{p.discount_factor.toFixed(4)}</td>
+                            <td class="py-1.5 text-right text-emerald-400 font-bold">${(p.pv_fcf / 1e9).toFixed(2)}B</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div class="pt-3 border-t border-slate-800 text-xs flex justify-between text-slate-400">
+                    <span>Terminal Value (at Y10):</span>
+                    <span class="font-mono font-bold text-white">${(result.dcf_details.terminal_value / 1e9).toFixed(2)}B</span>
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 2. OPTION VALUATION & GREEKS VIEW
+    // ==========================================
+    function OptionValuationView({ dataSource }) {
+      const [underlyingPrice, setUnderlyingPrice] = useState(200.0);
+      const [strikePrice, setStrikePrice] = useState(200.0);
+      const [dte, setDte] = useState(30.0); // Days to expiration
+      const [volatility, setVolatility] = useState(25.0); // %
+      const [riskFree, setRiskFree] = useState(4.5); // %
+      const [dividendYield, setDividendYield] = useState(0.0); // %
+      const [optionType, setOptionType] = useState("call"); // "call" | "put"
+      const [style, setStyle] = useState("european"); // "european" | "american"
+      const [model, setModel] = useState("black_scholes"); // "black_scholes" | "binomial"
+
+      // IV Calculator state
+      const [marketPriceInput, setMarketPriceInput] = useState(5.50);
+      const [ivResult, setIvResult] = useState(null);
+
+      // Valuation results
+      const [optionResult, setOptionResult] = useState(null);
+      const [sensitivityMatrix, setSensitivityMatrix] = useState(null);
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState(null);
+
+      const calculateOption = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          const payload = {
+            underlying_price: Number(underlyingPrice),
+            strike_price: Number(strikePrice),
+            days_to_expiration: Number(dte),
+            volatility: Number(volatility) / 100.0,
+            risk_free_rate: Number(riskFree) / 100.0,
+            dividend_yield: Number(dividendYield) / 100.0,
+            option_type: optionType,
+            style: style,
+            model: model,
+            binomial_steps: 100
+          };
+
+          const [pricingRes, sensRes] = await Promise.all([
+            fetch(`${API_BASE}/options/evaluate/pricing`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            }),
+            fetch(
+              `${API_BASE}/options/evaluate/sensitivity?spot=${underlyingPrice}&strike=${strikePrice}&days_to_expiration=${dte}&volatility=${Number(volatility)/100}&risk_free_rate=${Number(riskFree)/100}&option_type=${optionType}`
+            )
+          ]);
+
+          if (!pricingRes.ok) {
+            const err = await pricingRes.json();
+            throw new Error(err.detail || "Option calculation failed");
+          }
+
+          const pricingData = await pricingRes.json();
+          setOptionResult(pricingData);
+
+          if (sensRes.ok) {
+            const sensData = await sensRes.json();
+            setSensitivityMatrix(sensData);
+          }
+        } catch (e) {
+          setError(e.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const solveIV = async () => {
+        try {
+          const res = await fetch(`${API_BASE}/options/evaluate/implied-volatility`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              market_price: Number(marketPriceInput),
+              underlying_price: Number(underlyingPrice),
+              strike_price: Number(strikePrice),
+              days_to_expiration: Number(dte),
+              risk_free_rate: Number(riskFree) / 100.0,
+              dividend_yield: Number(dividendYield) / 100.0,
+              option_type: optionType
+            })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setIvResult(data);
+          }
+        } catch (e) {}
+      };
+
+      useEffect(() => {
+        calculateOption();
+      }, [optionType, style, model]);
+
+      return (
+        <div class="space-y-6">
+          {/* Header Controls */}
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+              <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-semibold">
+                <button
+                  onClick={() => setOptionType("call")}
+                  class={`px-4 py-1.5 rounded-lg transition ${
+                    optionType === "call" ? "bg-emerald-500 text-slate-950" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  CALL OPTION
+                </button>
+                <button
+                  onClick={() => setOptionType("put")}
+                  class={`px-4 py-1.5 rounded-lg transition ${
+                    optionType === "put" ? "bg-rose-500 text-white" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  PUT OPTION
+                </button>
+              </div>
+
+              <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-medium">
+                <button
+                  onClick={() => { setStyle("european"); setModel("black_scholes"); }}
+                  class={`px-3 py-1.5 rounded-lg transition ${
+                    style === "european" ? "bg-slate-800 text-white" : "text-slate-400"
+                  }`}
+                >
+                  European (Black-Scholes)
+                </button>
+                <button
+                  onClick={() => { setStyle("american"); setModel("binomial"); }}
+                  class={`px-3 py-1.5 rounded-lg transition ${
+                    style === "american" ? "bg-slate-800 text-white" : "text-slate-400"
+                  }`}
+                >
+                  American (Binomial Lattice)
+                </button>
+              </div>
+            </div>
+
+            <button
+              onClick={calculateOption}
+              disabled={loading}
+              class="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm transition"
+            >
+              {loading ? "Computing..." : "Compute Fair Value & Greeks"}
+            </button>
+          </div>
+
+          {error && (
+            <div class="p-4 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-sm">
+              <strong>Error:</strong> {error}
+            </div>
+          )}
+
+          {/* Grid: Parameters Form (Left) & Greeks Dashboard (Right) */}
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* Parameters Inputs */}
+            <div class="lg:col-span-5 space-y-5">
+              <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <h3 class="font-bold text-white text-base border-b border-slate-800 pb-3">Contract Specifications</h3>
+                
+                <div class="space-y-4 text-xs">
+                  <div>
+                    <label class="text-slate-400 block mb-1">Underlying Spot Price (S) ($)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={underlyingPrice}
+                      onChange={(e) => setUnderlyingPrice(e.target.value)}
+                      class="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg font-mono text-white text-sm focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label class="text-slate-400 block mb-1">Strike Price (K) ($)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={strikePrice}
+                      onChange={(e) => setStrikePrice(e.target.value)}
+                      class="w-full bg-slate-950 border border-slate-800 px-3 py-2 rounded-lg font-mono text-white text-sm focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <div class="flex justify-between mb-1">
+                      <label class="text-slate-400">Days to Expiration (DTE)</label>
+                      <span class="text-emerald-400 font-mono font-bold">{dte} days ({(dte/365).toFixed(3)}y)</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="1"
+                      max="365"
+                      value={dte}
+                      onChange={(e) => setDte(e.target.value)}
+                      class="w-full accent-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <div class="flex justify-between mb-1">
+                      <label class="text-slate-400">Annualized Volatility (σ)</label>
+                      <span class="text-emerald-400 font-mono font-bold">{volatility}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="120"
+                      step="0.5"
+                      value={volatility}
+                      onChange={(e) => setVolatility(e.target.value)}
+                      class="w-full accent-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <div class="flex justify-between mb-1">
+                      <label class="text-slate-400">Risk-Free Interest Rate (r)</label>
+                      <span class="text-emerald-400 font-mono font-bold">{riskFree}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="12.0"
+                      step="0.25"
+                      value={riskFree}
+                      onChange={(e) => setRiskFree(e.target.value)}
+                      class="w-full accent-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <div class="flex justify-between mb-1">
+                      <label class="text-slate-400">Continuous Dividend Yield (q)</label>
+                      <span class="text-emerald-400 font-mono font-bold">{dividendYield}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.0"
+                      max="10.0"
+                      step="0.25"
+                      value={dividendYield}
+                      onChange={(e) => setDividendYield(e.target.value)}
+                      class="w-full accent-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Implied Volatility Solver Card */}
+              <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+                <h4 class="font-bold text-white text-sm">Implied Volatility (IV) Reverse Solver</h4>
+                <p class="text-xs text-slate-400">Enter traded market option price to deduce implied volatility via Newton-Raphson.</p>
+                
+                <div class="flex items-center space-x-2">
+                  <input
+                    type="number"
+                    step="0.05"
+                    value={marketPriceInput}
+                    onChange={(e) => setMarketPriceInput(e.target.value)}
+                    placeholder="Market Price ($)"
+                    class="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-lg font-mono text-white text-xs w-36"
+                  />
+                  <button
+                    onClick={solveIV}
+                    class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold"
+                  >
+                    Solve IV
+                  </button>
+                  {ivResult && (
+                    <span class="text-xs font-mono font-bold text-emerald-400">
+                      IV: {ivResult.implied_volatility_pct}%
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Greeks & Valuation Output */}
+            <div class="lg:col-span-7 space-y-5">
+              {optionResult && (
+                <>
+                  {/* Primary Pricing Banner */}
+                  <div class="bg-gradient-to-br from-slate-900 to-slate-850 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                    <div class="flex items-center justify-between mb-2">
+                      <span class="text-xs uppercase font-mono text-slate-400">
+                        {optionResult.model_name} • {optionResult.style.toUpperCase()}
+                      </span>
+                      <span class={`text-xs px-2.5 py-0.5 rounded-full font-mono font-bold ${
+                        optionResult.moneyness_status === "ITM" ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-800 text-slate-400"
+                      }`}>
+                        {optionResult.moneyness_status}
+                      </span>
+                    </div>
+
+                    <div class="flex items-baseline space-x-3 mb-4">
+                      <span class="text-4xl font-extrabold text-white font-mono">
+                        ${optionResult.fair_price.toFixed(4)}
+                      </span>
+                      <span class="text-sm text-slate-400">
+                        Breakeven: <strong class="text-white font-mono">${optionResult.breakeven_price.toFixed(2)}</strong>
+                      </span>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3 text-xs pt-3 border-t border-slate-800 font-mono">
+                      <div>
+                        <span class="text-slate-500 block">Intrinsic Value</span>
+                        <span class="text-white font-bold">${optionResult.intrinsic_value.toFixed(4)}</span>
+                      </div>
+                      <div>
+                        <span class="text-slate-500 block">Time Value</span>
+                        <span class="text-white font-bold">${optionResult.time_value.toFixed(4)}</span>
+                      </div>
+                      <div>
+                        <span class="text-slate-500 block">Early Ex. Premium</span>
+                        <span class="text-emerald-400 font-bold">${(optionResult.american_early_exercise_premium || 0).toFixed(4)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Greeks Dashboard Cards */}
+                  <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    
+                    <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl text-center">
+                      <span class="text-xs text-slate-400 block font-mono">Delta (Δ)</span>
+                      <span class="text-lg font-mono font-bold text-white block mt-1">
+                        {optionResult.greeks.delta.toFixed(4)}
+                      </span>
+                      <span class="text-[10px] text-slate-500">dV / dS</span>
+                    </div>
+
+                    <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl text-center">
+                      <span class="text-xs text-slate-400 block font-mono">Gamma (Γ)</span>
+                      <span class="text-lg font-mono font-bold text-white block mt-1">
+                        {optionResult.greeks.gamma.toFixed(4)}
+                      </span>
+                      <span class="text-[10px] text-slate-500">dΔ / dS</span>
+                    </div>
+
+                    <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl text-center">
+                      <span class="text-xs text-slate-400 block font-mono">Theta (Θ)</span>
+                      <span class="text-lg font-mono font-bold text-rose-400 block mt-1">
+                        ${optionResult.greeks.theta_daily.toFixed(3)}
+                      </span>
+                      <span class="text-[10px] text-slate-500">Decay / Day</span>
+                    </div>
+
+                    <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl text-center">
+                      <span class="text-xs text-slate-400 block font-mono">Vega (ν)</span>
+                      <span class="text-lg font-mono font-bold text-emerald-400 block mt-1">
+                        ${optionResult.greeks.vega_1pct.toFixed(3)}
+                      </span>
+                      <span class="text-[10px] text-slate-500">Per 1% Vol</span>
+                    </div>
+
+                    <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl text-center">
+                      <span class="text-xs text-slate-400 block font-mono">Rho (ρ)</span>
+                      <span class="text-lg font-mono font-bold text-white block mt-1">
+                        ${optionResult.greeks.rho_1pct.toFixed(3)}
+                      </span>
+                      <span class="text-[10px] text-slate-500">Per 1% Rate</span>
+                    </div>
+
+                  </div>
+
+                  {/* Sensitivity Heatmap Table */}
+                  {sensitivityMatrix && (
+                    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+                      <div class="flex justify-between items-center">
+                        <h4 class="text-xs font-bold text-white uppercase font-mono">Option Price Sensitivity Matrix</h4>
+                        <span class="text-[11px] text-slate-400 font-mono">Spot Price vs Volatility</span>
+                      </div>
+
+                      <div class="overflow-x-auto">
+                        <table class="w-full text-center text-xs font-mono">
+                          <thead>
+                            <tr class="text-slate-400 border-b border-slate-800">
+                              <th class="py-2 text-left">Spot / Vol</th>
+                              {sensitivityMatrix.vol_range.map(v => (
+                                <th key={v} class="py-2">{Math.round(v * 100)}%</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody class="divide-y divide-slate-850">
+                            {sensitivityMatrix.spot_range.map((s, rowIdx) => (
+                              <tr key={s} class={s === Number(underlyingPrice) ? "bg-emerald-500/10 font-bold" : ""}>
+                                <td class="py-2 text-left text-slate-300">${s.toFixed(1)}</td>
+                                {sensitivityMatrix.matrix[rowIdx].map((price, colIdx) => (
+                                  <td key={colIdx} class="py-2 text-emerald-400">
+                                    ${price.toFixed(2)}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 3. SPEC-DRIVEN KNOWLEDGE BASE VIEW
+    // ==========================================
+    function KnowledgeBaseView() {
+      const [indexData, setIndexData] = useState(null);
+      const [selectedSpecId, setSelectedSpecId] = useState("stock-dcf");
+      const [specContent, setSpecContent] = useState(null);
+      const [loading, setLoading] = useState(false);
+
+      useEffect(() => {
+        fetch(`${API_BASE}/knowledge/index`)
+          .then(r => r.json())
+          .then(data => {
+            setIndexData(data);
+          })
+          .catch(() => {});
+      }, []);
+
+      useEffect(() => {
+        if (!selectedSpecId) return;
+        setLoading(true);
+        fetch(`${API_BASE}/knowledge/spec/${selectedSpecId}`)
+          .then(r => r.json())
+          .then(data => {
+            setSpecContent(data);
+          })
+          .catch(() => {})
+          .finally(() => setLoading(false));
+      }, [selectedSpecId]);
+
+      return (
+        <div class="space-y-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+            <h2 class="text-xl font-bold text-white mb-2">Spec-Driven Knowledge Base</h2>
+            <p class="text-xs text-slate-400">
+              ShareVal enforces a spec-first architecture where mathematical bounds, algorithmic logic, data contracts, and REST endpoints are indexed and verified before implementation.
+            </p>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Nav: Spec Tree */}
+            <div class="lg:col-span-4 space-y-4">
+              {indexData && indexData.categories && indexData.categories.map(cat => (
+                <div key={cat.id} class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 space-y-2">
+                  <span class="text-xs uppercase font-mono font-bold text-slate-400 block tracking-wider">
+                    {cat.name}
+                  </span>
+                  <div class="space-y-1">
+                    {cat.items.map(itemId => {
+                      const spec = indexData.specs[itemId];
+                      if (!spec) return null;
+                      const isSelected = selectedSpecId === itemId;
+                      return (
+                        <button
+                          key={itemId}
+                          onClick={() => setSelectedSpecId(itemId)}
+                          class={`w-full text-left px-3 py-2 rounded-lg text-xs transition flex items-center justify-between ${
+                            isSelected
+                              ? "bg-emerald-500 text-slate-950 font-bold shadow"
+                              : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                          }`}
+                        >
+                          <span>{spec.title}</span>
+                          <span class="font-mono text-[10px] opacity-70">→</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Right Pane: Spec Details */}
+            <div class="lg:col-span-8">
+              {loading ? (
+                <div class="p-8 text-center text-slate-500 font-mono text-sm">Loading spec documentation...</div>
+              ) : specContent ? (
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
+                  <div class="border-b border-slate-800 pb-4">
+                    <span class="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono">
+                      {specContent.metadata.id}
+                    </span>
+                    <h3 class="text-2xl font-bold text-white mt-2">{specContent.metadata.title}</h3>
+                    <div class="mt-2 text-xs font-mono text-slate-400 bg-slate-950 p-2.5 rounded-lg border border-slate-800 overflow-x-auto">
+                      <strong>Formula / Interface:</strong> {specContent.metadata.formula}
+                    </div>
+                  </div>
+
+                  {/* Key Parameters Table */}
+                  {specContent.metadata.keyParameters && specContent.metadata.keyParameters.length > 0 && (
+                    <div class="space-y-2">
+                      <h4 class="text-xs font-bold text-white uppercase tracking-wider font-mono">Parameter Contract</h4>
+                      <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs font-mono">
+                          <thead>
+                            <tr class="text-slate-400 border-b border-slate-800">
+                              <th class="py-2">Name</th>
+                              <th class="py-2">Type</th>
+                              <th class="py-2">Unit</th>
+                              <th class="py-2">Description</th>
+                            </tr>
+                          </thead>
+                          <tbody class="divide-y divide-slate-850">
+                            {specContent.metadata.keyParameters.map((p, i) => (
+                              <tr key={i} class="hover:bg-slate-800/30">
+                                <td class="py-2 text-emerald-400 font-bold">{p.name}</td>
+                                <td class="py-2 text-slate-400">{p.type}</td>
+                                <td class="py-2 text-slate-400">{p.unit}</td>
+                                <td class="py-2 text-slate-300">{p.description}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Raw Markdown / Spec Content */}
+                  <div class="space-y-2 pt-4 border-t border-slate-800">
+                    <h4 class="text-xs font-bold text-white uppercase tracking-wider font-mono">Specification Document</h4>
+                    <pre class="bg-slate-950 p-4 rounded-xl text-xs text-slate-300 font-mono whitespace-pre-wrap leading-relaxed border border-slate-800 overflow-x-auto max-h-[500px]">
+                      {specContent.content}
+                    </pre>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
